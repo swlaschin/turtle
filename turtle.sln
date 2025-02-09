@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
 VisualStudioVersion = 14.0.24720.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "turtle", "talk\turtle.fsproj", "{F72D7B2F-9C0A-454E-892C-2AED49C982A6}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "talk_scripts", "talk\talk_scripts.fsproj", "{F72D7B2F-9C0A-454E-892C-2AED49C982A6}"
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "canvas", "talk_canvas\canvas.fsproj", "{994D2180-3A40-40F9-ABD8-BDFD5C47ACCC}"
 EndProject

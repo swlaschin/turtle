@@ -2,13 +2,15 @@
 // test the command logic
 // =================================
 
+open System.IO
+
 // start the canvas app
+Directory.SetCurrentDirectory(__SOURCE_DIRECTORY__)
 System.Diagnostics.Process.Start("dotnet","run") |> ignore
 
 // setup the command writer
-open System.IO
 let commandFilePath = 
-    let cwd = Directory.GetCurrentDirectory()
+    let cwd = __SOURCE_DIRECTORY__
     let filename = "~turtlecommand.txt"
     Path.Combine(cwd,filename)
 

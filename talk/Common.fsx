@@ -178,12 +178,15 @@ calcNewPositionBounded(300.0, 45.0, {x=50. ; y=199.})  // dx=1,dy=1  scale=0.004
 
 module Canvas =
     open DomainTypes
-    
+    open System.IO
+
+   
     // track the open canvas window
     let mutable canvasProcess : System.Diagnostics.Process = null 
 
     /// Build the canvas executable if needed 
     let build() =
+        Directory.SetCurrentDirectory(__SOURCE_DIRECTORY__)
         System.Diagnostics.Process.Start("dotnet",@"build ../talk_canvas/canvas.fsproj")
         |> ignore
     
@@ -193,6 +196,7 @@ module Canvas =
     /// Start the canvas app if it is not already running.
     /// NOTE: Run build() first time before using this
     let init() =
+        Directory.SetCurrentDirectory(__SOURCE_DIRECTORY__)
         if (isNull canvasProcess) || (canvasProcess.HasExited) then
             Logger.info "Launching canvas"
             canvasProcess <- System.Diagnostics.Process.Start("dotnet",@"../talk_canvas/bin/Debug/net8.0/canvas.dll") 
@@ -201,11 +205,10 @@ module Canvas =
     // Canvas.init()
 
     
-    open System.IO
 
     /// Define the path to the command file
-    let commandFilePath = 
-        let cwd = Directory.GetCurrentDirectory()
+    let commandFilePath =
+        let cwd = __SOURCE_DIRECTORY__
         let filename = "~turtlecommand.txt"
         Path.Combine(cwd,filename)
 
