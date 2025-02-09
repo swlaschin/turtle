@@ -20,14 +20,14 @@ open Common
 // ======================================
 
 type TurtleState = {
-    position : Position
+    position : TurtlePosition
     angle : Angle
     penState : PenState
 }
 
 module Turtle = 
 
-    let initialTurtleState = {
+    let initialState = {
         position = initialPosition
         angle = 0.0
         penState = initialPenState
@@ -35,21 +35,21 @@ module Turtle =
 
     // return distance moved as well as state
     let move distance state =
-        Logger.info (sprintf "Move %0.1f" distance)
+        Logger.info $"Move %0.1f{distance}"
         
         // calculate new position 
         let startPosition = state.position
-        let endPosition,distanceMoved = calcNewPositionBounded(distance,state.angle,startPosition)
+        let endPosition,bounded = calcNewPositionBounded(distance,state.angle,startPosition)
         
         if state.penState = Down then
             Canvas.drawLine(startPosition, endPosition)
 
-        // return distanceMoved and new state
-        distanceMoved, {state with position = endPosition}
+        // return new state, distanceMoved and whether it was bounded
+        bounded, {state with position = endPosition}
 
 
     let turn angleToTurn state =
-        Logger.info (sprintf "Turn %0.1f" angleToTurn)
+        Logger.info $"Turn %0.1f{angleToTurn}"
         let newAngle = calcNewAngle(angleToTurn,state.angle ) 
         // update the state
         {state with angle = newAngle}

@@ -1,9 +1,9 @@
 ﻿(* ======================================
 Part of "Thirteen ways of looking at a turtle"
-Talk and video: http://fsharpforfunandprofit.com/turtle/
+Talk and video: https://fsharpforfunandprofit.com/turtle/
 ======================================
 
-Turtle Actor -- Posting messages to an Actor
+Way #6b - Turtle Actor -- Posting messages to an Actor
 
 Because the Actor has a message queue, all possible commands are managed with a
 single discriminated union type (`TurtleCommand`).
@@ -33,6 +33,7 @@ type TurtleCommand =
 type TurtleActor() =
 
 (*
+    // here's the pseudo-code
     let rec loop turtleState =
         let command = // read a command from the message queue
         let newState =
@@ -48,7 +49,8 @@ type TurtleActor() =
         let rec loop turtleState = async {
             // read a command message from teh queue
             let! command = inbox.Receive()
-            // create a new state from handling the message
+            
+            // create a new state from executing the command
             let newState =
                 match command with
                 | Move distance ->
@@ -59,10 +61,11 @@ type TurtleActor() =
                     Turtle.penUp turtleState
                 | PenDown ->
                     Turtle.penDown turtleState
+                    
             return! loop newState
             }
 
-        loop Turtle.initialTurtleState )
+        loop Turtle.initialState )
 
     // expose the queue externally
     member this.Post(command) =
@@ -75,22 +78,28 @@ type TurtleActor() =
 
 
 let drawTriangle() =
+    let distance = 100.0
+    let angle = 120.0
+    
     let turtleActor = new TurtleActor()
-    turtleActor.Post (Move 100.0)
-    turtleActor.Post (Turn 120.0)
-    turtleActor.Post (Move 100.0)
-    turtleActor.Post (Turn 120.0)
-    turtleActor.Post (Move 100.0)
-    turtleActor.Post (Turn 120.0)
+    turtleActor.Post (Move distance)
+    turtleActor.Post (Turn angle)
+    turtleActor.Post (Move distance)
+    turtleActor.Post (Turn angle)
+    turtleActor.Post (Move distance)
+    turtleActor.Post (Turn angle)
 
 (*
 Canvas.init()
+Canvas.clear()
 drawTriangle()
 
 Canvas.init()
+Canvas.clear()
 let turtleActor = new TurtleActor()
 turtleActor.Post (Move 50.0)
 turtleActor.Post (Turn 120.0)
+turtleActor.Post (Move 50.0)
 turtleActor.Post (Turn 90.0)
 
 *)

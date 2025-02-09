@@ -1,6 +1,6 @@
 ﻿(* ======================================
 Part of "Thirteen ways of looking at a turtle"
-Talk and video: http://fsharpforfunandprofit.com/turtle/
+Talk and video: https://fsharpforfunandprofit.com/turtle/
 ======================================
 
 Way #1: Simple OO -- a class with mutable state
@@ -10,11 +10,54 @@ and the client talks to the turtle directly.
 
 ====================================== *)
 
-#load "Common.fsx" "OOTurtleLib.fsx"
+#load "Common.fsx" 
 
 open System
 open Common
-open OOTurtleLib
+
+// ======================================
+// Turtle class
+// ======================================
+
+type Turtle() =
+
+    // internal mutable state
+    let mutable position = initialPosition 
+    let mutable angle = 0.0
+    let mutable penState = Down
+    
+    // methods    
+    member this.Move(distance) =
+        Logger.info $"Move %0.1f{distance}"
+
+        // do calculation
+        let newPos = calcNewPosition(distance,angle,position)
+
+        // draw line if needed
+        if penState = Down then
+            Canvas.drawLine(position,newPos)
+
+        // update the state
+        position <- newPos 
+
+
+    member this.Turn(angleToTurn) =
+        Logger.info $"Turn %0.1f{angleToTurn}"
+
+        // do calculation
+        let newAngle = calcNewAngle(angleToTurn,angle) 
+        
+        // update the state
+        angle <- newAngle 
+
+    member this.PenUp() =
+        Logger.info "Pen up" 
+        penState <- Up
+
+    member this.PenDown() =
+        Logger.info "Pen down" 
+        penState <- Down
+
 
 // ======================================
 // OO Turtle Examples
@@ -22,15 +65,18 @@ open OOTurtleLib
 
 (*
 Canvas.init()
-let distance = 50.0
+Canvas.clear()
+
+let distance = 100.0
+let angle = 120.0
 
 let turtle = Turtle()
 turtle.Move(distance)
-turtle.Turn(120.0)
+turtle.Turn(angle)
 turtle.Move(distance)
-turtle.Turn(120.0)
+turtle.Turn(angle)
 turtle.Move(distance)
-turtle.Turn(120.0)
+turtle.Turn(angle)
 
 turtle.PenUp()
 turtle.Move(distance)
@@ -38,31 +84,35 @@ turtle.PenDown()
 turtle.Turn(120.0)
 *)
 
-let drawTriangle() =
-    let distance = 50.0
-    let turtle = Turtle()
+let drawTriangle(turtle:Turtle) =
+    let distance = 100.0
+    let angle = 120.0
+    
     turtle.Move(distance)
-    turtle.Turn(120.0)
+    turtle.Turn(angle)
     turtle.Move(distance)
-    turtle.Turn(120.0)
+    turtle.Turn(angle)
     turtle.Move(distance)
-    turtle.Turn(120.0)
+    turtle.Turn(angle)
     // back home at (0,0) with angle 0
 
 (*
-Canvas.init()
+Canvas.init() 
 Canvas.clear()
-drawTriangle()
+
+let turtle = Turtle()
+drawTriangle(turtle)
 *)
 
 let drawPolygon n =
+    let distance = 100.0
     let angle = (360.0/float n)
     let angleDegrees = angle * 1.0
     let turtle = Turtle()
 
     // define a function that draws one side
     let drawOneSide() =
-        turtle.Move(50.0)
+        turtle.Move(distance)
         turtle.Turn(angleDegrees)
 
     // repeat for all sides

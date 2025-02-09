@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.24720.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "turtle", "talk\turtle.fsproj", "{F72D7B2F-9C0A-454E-892C-2AED49C982A6}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "canvas", "talk_canvas\canvas.fsproj", "{994D2180-3A40-40F9-ABD8-BDFD5C47ACCC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F72D7B2F-9C0A-454E-892C-2AED49C982A6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F72D7B2F-9C0A-454E-892C-2AED49C982A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F72D7B2F-9C0A-454E-892C-2AED49C982A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F72D7B2F-9C0A-454E-892C-2AED49C982A6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{994D2180-3A40-40F9-ABD8-BDFD5C47ACCC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{994D2180-3A40-40F9-ABD8-BDFD5C47ACCC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{994D2180-3A40-40F9-ABD8-BDFD5C47ACCC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{994D2180-3A40-40F9-ABD8-BDFD5C47ACCC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

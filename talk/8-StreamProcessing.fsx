@@ -1,9 +1,9 @@
 ﻿(* ======================================
 Part of "Thirteen ways of looking at a turtle"
-Talk and video: http://fsharpforfunandprofit.com/turtle/
+Talk and video: https://fsharpforfunandprofit.com/turtle/
 ======================================
 
-Stream processing -- Business logic is based on reacting to earlier events
+Way #8 - Stream processing -- Business logic is based on reacting to earlier events
 
 In this design, the "write-side" follows the same pattern as the event-sourcing example.
 A client sends a Command to a CommandHandler, which converts that to a list of events and stores them in an EventStore.
@@ -33,7 +33,7 @@ type TurtleCommand =
 
 /// An event representing a state change that happened
 type TurtleEvent =
-    | Moved of Distance * startPos:Position * endPos:Position
+    | Moved of Distance * startPos:TurtlePosition * endPos:TurtlePosition
     | Turned of angleTurned:Angle * finalAngle:Angle
     | PenStateChanged of PenState
 
@@ -49,7 +49,7 @@ module EventStore =
     let clear() =
         events.Clear()
 
-    let eventSaved = new Event<TurtleEvent>()
+    let eventSaved = Event<TurtleEvent>()
 
     /// save an event to storage
     let saveEvent event =
@@ -90,11 +90,14 @@ module CommandHandler =
         | Move distance ->
             let startPosition = state.position
             // calculate new position
-            let endPosition,actualDistanceMoved = calcNewPositionBounded(distance,state.angle,startPosition)
+            let endPosition,boundedResult = calcNewPositionBounded(distance,state.angle,startPosition)
 
-            //return list of events
-            if actualDistanceMoved > 0.0 then
-                [ Moved (actualDistanceMoved,startPosition,endPosition) ]
+            // DO NOT ACT ON TURTLE HERE!
+            // Compare with EventSourcing code
+                            
+            // construct the list of events and return them
+            if boundedResult.distanceMoved > 0.0 then
+                [ Moved (boundedResult.distanceMoved,startPosition,endPosition) ]
             else
                 []
 
@@ -119,14 +122,14 @@ module CommandHandler =
 
         /// Then, recreate the state before the command
         let stateBeforeCommand =
-            eventHistory |> List.fold applyEvent Turtle.initialTurtleState
+            eventHistory |> List.fold applyEvent Turtle.initialState
 
         /// Construct the events from the command and the stateBeforeCommand
         /// Do use the supplied logger for this bit
         let events = executeCommand command stateBeforeCommand
 
         // store the events in the event store
-        events |> List.iter (EventStore.saveEvent)
+        events |> List.iter EventStore.saveEvent
 
 // ====================================
 // EventProcessors
@@ -139,20 +142,20 @@ let auditingProcessor (eventStream:IObservable<_>) =
     let actOnEvent event =
         match event with
         | Moved (distance,startPos,endPos) ->
-            Logger.info (sprintf "AUDIT Move %0.1f" distance)
+            printfn $"[AUDIT PROCESSOR] Move %0.1f{distance}"
         | Turned (angleToTurn,endAngle) ->
-            Logger.info (sprintf "AUDIT Turn %0.1f" angleToTurn)
+            printfn $"[AUDIT PROCESSOR] Turn %0.1f{angleToTurn}"
         | PenStateChanged Up ->
-            Logger.info "AUDIT Pen up"
+            printfn "[AUDIT PROCESSOR] Pen up"
         | PenStateChanged Down ->
-            Logger.info "AUDIT Pen down"
+            printfn "[AUDIT PROCESSOR] Pen down"
 
     // start with all events
     eventStream
     // handle these
     |> Observable.subscribe actOnEvent
 
-/// Draw lines on a the turtle canvas
+/// Draw lines on the turtle canvas
 let canvasProcessor (eventStream:IObservable<_>) =
 
     // filter to choose only MovedEvents from TurtleEvents
@@ -184,7 +187,7 @@ let distanceTravelledProcessor (eventStream:IObservable<_>) =
 
     // the function that handles the input from the observable
     let actOnEvent distanceSoFar  =
-        printfn "[total distance travelled so far]: %0.2f" distanceSoFar
+        printfn $"[DISTANCE PROCESSOR] total distance=%0.2f{distanceSoFar}"
 
 
     // start with all events
@@ -198,39 +201,48 @@ let distanceTravelledProcessor (eventStream:IObservable<_>) =
 
 
 // ====================================
-// StreamProcessingExample
+// StreamProcessing examples
 // ====================================
-(*
+
 open CommandHandler
+
+let drawTriangle() =
+    let distance = 100.0
+    let angle = 120.0
+    
+    // Canvas.init()
+    handleCommand (Move distance)
+    handleCommand (Turn angle)
+    handleCommand (Move distance)
+    handleCommand (Turn angle)
+    handleCommand (Move distance)
+    handleCommand (Turn angle)
+
+let example1() =
+    // create an event stream from an IEvent
+    let eventStream = EventStore.eventSaved.Publish :> IObservable<_>
+
+    // register the processors
+    use auditingProc = auditingProcessor eventStream
+    use canvasProc = canvasProcessor eventStream
+    use distanceTravelledProc = distanceTravelledProcessor eventStream
+    
+    // do some commands
+    handleCommand (Move 100.0)
+    handleCommand (Turn 90.0)
+    handleCommand (Move 100.0)
+
+    drawTriangle()
+   
+    
+(*
 EventStore.clear()
 EventStore.getEvents()
 
-// create an event stream from an IEvent
-let eventStream = EventStore.eventSaved.Publish :> IObservable<_>
-
-// register the processors
-let auditingProc = auditingProcessor eventStream
-let canvasProc = canvasProcessor eventStream
-let distanceTravelledProc = distanceTravelledProcessor eventStream
-
 Canvas.init()
-handleCommand (Move 100.0)
-handleCommand (Turn 120.0)
-handleCommand (Move 100.0)
-handleCommand (Turn 120.0)
-handleCommand (Move 100.0)
-handleCommand (Turn 120.0)
+Canvas.clear()
+Canvas.verbose(false)
 
+example1()
 
-let drawTriangle() =
-
-    // Canvas.init()
-    handleCommand (Move 100.0)
-    handleCommand (Turn 120.0)
-    handleCommand (Move 100.0)
-    handleCommand (Turn 120.0)
-    handleCommand (Move 100.0)
-    handleCommand (Turn 120.0)
-
-drawTriangle()
 *)

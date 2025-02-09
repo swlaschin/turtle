@@ -1,10 +1,9 @@
 ﻿(* ======================================
 Part of "Thirteen ways of looking at a turtle"
-Talk and video: http://fsharpforfunandprofit.com/turtle/
-
+Talk and video: https://fsharpforfunandprofit.com/turtle/
 ======================================
 
-OO-style turtle class with dependency injection
+Way #9 - OO-style turtle class with dependency injection
 
 ====================================== *)
 
@@ -18,41 +17,42 @@ open Common
 // Interfaces
 // ======================================
 
+type ILogger =
+    abstract Info : string -> unit
+    abstract Error : string -> unit
+
+type ICanvas =
+    abstract DrawLine : TurtlePosition * TurtlePosition -> unit
+    abstract Clear : unit -> unit
+
 type ITurtle =
     abstract Move : Distance -> unit
     abstract Turn : Angle -> unit
     abstract PenUp : unit -> unit
     abstract PenDown : unit -> unit
 
-type ILogger =
-    abstract Info : string -> unit
-    abstract Error : string -> unit
-
-type ICanvas =
-    abstract Draw : Position * Position -> unit
-    abstract Clear : unit -> unit
-
 // ======================================
 // Turtle class
 // ======================================
 
 type Turtle(logger:ILogger, canvas:ICanvas) as this =
+    //------^ constructor injection
 
     let mutable position = initialPosition
     let mutable angle = 0.0
     let mutable penState = initialPenState
 
     member this.Move(distance) =
-        logger.Info (sprintf "Move %0.1f" distance)
+        logger.Info $"Move %0.1f{distance}"
         let newPos = calcNewPosition(distance,angle,position)
         if penState = Down then
-            canvas.Draw(position,newPos)
+            canvas.DrawLine(position,newPos)
 
         // update the state
         position <- newPos
 
     member this.Turn(angleToTurn) =
-        logger.Info (sprintf "Turn %0.1f" angleToTurn)
+        logger.Info $"Turn %0.1f{angleToTurn}"
         let newAngle = calcNewAngle(angleToTurn,angle)
         // update the state
         angle <- newAngle
@@ -65,57 +65,82 @@ type Turtle(logger:ILogger, canvas:ICanvas) as this =
         logger.Info "Pen down"
         penState <- Down
 
-    // implement the interface
+    // implement the ITurtle interface
     interface ITurtle with
-        member __.Move(distance) = this.Move(distance)
-        member __.Turn(angleToTurn) = this.Turn(angleToTurn)
-        member __.PenUp() = this.PenUp()
-        member __.PenDown() = this.PenDown()
-
-
-type TurtleFactory(logger:ILogger, canvas:ICanvas) =
-
-    member this.NewTurtle() =
-        Turtle(logger,canvas) :> ITurtle
+        member _.Move(distance) = this.Move(distance)
+        member _.Turn(angleToTurn) = this.Turn(angleToTurn)
+        member _.PenUp() = this.PenUp()
+        member _.PenDown() = this.PenDown()
 
 
 
-// test
+// ======================================
+// Interface implementations
+// ======================================
 
 let logger =
     {new ILogger with
-        member __.Info(msg) = Logger.info(msg)
-        member __.Error(msg) = Logger.error(msg)
+        member _.Info(msg) = Logger.info(msg)
+        member _.Error(msg) = Logger.error(msg)
         }
 
 let realCanvas =
     {new ICanvas with
-        member __.Draw(startPos,endPos)  = Canvas.drawLine(startPos,endPos)
-        member __.Clear() = Canvas.clear()
+        member _.DrawLine(startPos,endPos) =
+            Canvas.drawLine(startPos,endPos)
+        member _.Clear() =
+            Canvas.clear()
         }
 
 let mockCanvas =
     {new ICanvas with
-        member __.Draw(startPos,endPos)  = log $"[Mock] drawing from ({startPos.x},{startPos.y}) to ({endPos.x},{endPos.y})"
-        member __.Clear() = () // do nothing
+        member _.DrawLine(startPos,endPos) =
+            Logger.info $"[MockCanvas] drawing from ({startPos.x},{startPos.y}) to ({endPos.x},{endPos.y})"
+        member _.Clear() =
+            () // do nothing
         }
+
+let mockTurtle() : ITurtle =
+    let log = Logger.info
+    {new ITurtle with
+        member _.Move(distance) = log $"[MockTurtle] Move {distance}"
+        member _.Turn(angleToTurn) = log $"[MockTurtle] Turn {angleToTurn}"
+        member _.PenUp() = log $"[MockTurtle] PenUp"
+        member _.PenDown() = log $"[MockTurtle] PenDown"
+        }
+
+// ======================================
+// Examples
+// ======================================
 
 (*
 Canvas.init()
 
-let factory = TurtleFactory(logger,realCanvas)
-let turtle = factory.NewTurtle()
-turtle.Move 20.0
-turtle.Turn 90.0
-turtle.Move 20.0
-turtle.Turn 90.0
-turtle.Move 20.0
-turtle.Turn 90.0
-turtle.Move 20.0
+let distance = 100.0
+let angle = 120.0
 
-let factory = TurtleFactory(logger,mockCanvas)
-let turtle = factory.NewTurtle()
-turtle.Move 20.0
-turtle.Turn 90.0
-turtle.Move 20.0
+// use the real canvas
+let turtle = Turtle(logger,realCanvas)
+turtle.Move distance
+turtle.Turn angle
+turtle.Move distance
+turtle.Turn angle
+turtle.Move distance
+turtle.Turn angle
+turtle.Move distance
+
+// use mock canvas
+let turtle = Turtle(logger,mockCanvas)
+turtle.Move distance
+turtle.Turn angle
+turtle.Move distance
+turtle.Turn angle
+
+// use mock Turtle
+let turtle = mockTurtle()
+turtle.Move distance
+turtle.Turn angle
+turtle.Move distance
+turtle.Turn angle
+
 *)

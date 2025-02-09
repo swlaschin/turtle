@@ -8,210 +8,243 @@ Talk and video: http://fsharpforfunandprofit.com/turtle/
 
 open System
 
+
 // ======================================
 // Constants
 // ======================================
-let canvasSize = 100
+[<AutoOpen>]
+module Constants =
+    // the distance from the origin to the edge of the canvas
+    // So canvas width = 2 * radius    
+    let canvasRadius = 200.0
 
 // ======================================
-
-// Common types and helper functions
+// Logger
 // ======================================
 
-/// An alias for a float
-type Distance = float
+/// A crude logger to log to the console
+module Logger =
 
-/// An alias for a float of Degrees
-type Angle  = float
-
-/// Enumeration of available pen states
-type PenState = Up | Down
-
-/// A structure to store the (x,y) coordinates
-type Position = {x:float; y:float}
-    with override this.ToString() = sprintf "(%g,%g)" this.x this.y
-
-fsi.AddPrinter(fun (x : Position) -> x.ToString())
-
+    let info msg = printfn $"INFO %s{msg}"
+    let warn msg = printfn $"WARN %s{msg}"
+    let error msg = printfn $"ERROR %s{msg}"
+    
+    let debugActive = false // toggle this to see debug messages
+    let debug msg =
+        if debugActive then
+            printfn $"DEBUG %s{msg}"
 
 // ======================================
-// Common helper functions
+// Common types used throughout the scripts
+// ======================================
+[<AutoOpen>]
+module DomainTypes =
+    /// An alias for a float
+    type Distance = float
+
+    /// An alias for a float of Degrees
+    type Angle  = float
+
+    /// Enumeration of available pen states
+    type PenState = Up | Down
+
+    /// A structure to store the (x,y) coordinates
+    /// This is NOT the same as canvas coords -- it has (0,0) at the middle/origin
+    type TurtlePosition = {x:float; y:float}
+        with override this.ToString() = $"(%g{this.x},%g{this.y})"
+
+    // format Position nicely 
+    fsi.AddPrinter(fun (x : TurtlePosition) -> x.ToString())
+
+    /// Represent a change in a turtle position
+    type TurtleDelta = {dx:float; dy:float}
+        with override this.ToString() = $"(%g{this.dx},%g{this.dy})"
+    
+    /// returned from calculations that could be bounded
+    type BoundedResult = {
+        distanceMoved : Distance
+        wasBounded : bool
+    }
+
+// ======================================
+// Helper functions for turtle calculations
 // ======================================
 
-// round a float to two places to make it easier to read
-let round2 (flt:float) = Math.Round(flt,2)
+[<AutoOpen>]
+module TurtleCalculations =
 
-/// Calculate a new position from the current position given an angle and a distance
-/// calcNewPosition :   Distance * Angle * Position -> Position
-let calcNewPosition(distance:Distance,angle:Angle,currentPos:Position) =
-    // Convert degrees to radians with 180.0 degrees = 1 pi radian
-    let angleInRads = angle * (Math.PI/180.0) 
-    // current pos
-    let x0 = currentPos.x
-    let y0 = currentPos.y
-    // new pos
-    let x1 = x0 + (distance * cos angleInRads)
-    let y1 = y0 + (distance * sin angleInRads)
-    // return a new Position
-    {x=round2 x1; y=round2 y1}
+    /// round a float to two places to make it easier to read
+    let round2 (flt:float) = Math.Round(flt,2)
+
+    /// Calculate a delta from a distance and angle
+    let calcDelta(distance:Distance,angle:Angle) :TurtleDelta=
+        // Convert degrees to radians with 180.0 degrees = 1 pi radian
+        let angleInRads = angle * (Math.PI/180.0) 
+        // return a delta
+        {dx=(distance * cos angleInRads); dy=(distance * sin angleInRads)}
+
+    /// Calculate a new position using the delta
+    let applyDelta (delta:TurtleDelta) (pos:TurtlePosition) :TurtlePosition=
+        {x=round2(pos.x + delta.dx); y=round2(pos.y + delta.dy)}
+
+    /// Scale a delta
+    let scaleDelta scale (delta:TurtleDelta) :TurtleDelta =
+        {dx=round2(scale * delta.dx); dy=round2(scale * delta.dy)}
+    
+    /// Calculate a new (unbounded) position from the current position given an angle and a distance
+    /// calcNewPosition :   Distance * Angle * Position -> Position
+    let calcNewPosition(distance:Distance,angle:Angle,currentPos:TurtlePosition) =
+        let vector = calcDelta(distance,angle)
+        currentPos |> applyDelta vector
+
+    /// keep a dimension within bounds, return true if it was bounded
+    let boundedAxis max min x =
+        if x > max then
+            max, true
+        else if x < min then
+            min, true
+        else
+            x, false
+
+    /// keep a delta within a bounding box by scaling it down if needed, return true if it was bounded
+    let boundedDelta topLeftBound bottomRightBound delta =
+        let dxBounded, dxWasBounded = delta.dx |> boundedAxis topLeftBound.x bottomRightBound.x 
+        let dyBounded, dyWasBounded = delta.dy |> boundedAxis topLeftBound.y bottomRightBound.y
+        
+        // calculate the scale factors if any
+        let xScale = if dxWasBounded then dxBounded / delta.dx else 1.0
+        let yScale = if dyWasBounded then dyBounded / delta.dy else 1.0
+        
+        // choose the smaller scale factor
+        let scale = if xScale < yScale then xScale else yScale
+        
+        // scale both dx and dy by the scale factor
+        let scaledDelta = delta |> scaleDelta scale
+
+        // Logger.debug $"[bounded X] pos.x={delta.dx} xBounded={dxBounded} xScale={xScale}"
+        // Logger.debug $"[bounded Y] pos.y={delta.dy} yBounded={dyBounded} yScale={yScale}"
+        // Logger.debug $"[bounded Result] new dx={scaledDelta.dx} new dy={scaledDelta.dy} scale={scale}"
+        
+        scaledDelta, (dxWasBounded || dyWasBounded)
+
+    /// direct distance between two points
+    let pythagorianDistance pos1 pos2 =
+        let sq x = x * x
+        sq (pos1.x - pos2.x) + sq (pos1.y - pos2.y)
+        |> Math.Abs
+        |> Math.Sqrt
+        |> round2
+
+    /// Calculate a new position from the current position but keep it bounded
+    /// Also return the actual distance moved and whether it was bounded
+    let calcNewPositionBounded(distance,angle,currentPos) : TurtlePosition * BoundedResult =
+        // calculate a bounding box by treating the current position as delta to the canvas bounding box
+        let delta = {dx = -currentPos.x; dy = -currentPos.y}
+        let topLeftBound = {x = canvasRadius; y = canvasRadius} |> applyDelta delta
+        let bottomRightBound = {x = -canvasRadius; y = -canvasRadius} |> applyDelta delta
+        
+        // calculate the bounded delta
+        let delta,wasBounded =
+            calcDelta(distance,angle)
+            |> boundedDelta topLeftBound bottomRightBound
+
+        let newPos = currentPos |> applyDelta delta
+        let distanceMoved = pythagorianDistance currentPos newPos 
+        newPos, {distanceMoved=distanceMoved; wasBounded=wasBounded}
+
+    /// Calculate a new angle, given an angle to turn
+    let calcNewAngle(angleToTurn,currentAngle) =
+        (currentAngle + angleToTurn) % 360.0
+
+    /// Default initial state of a turtle
+    let initialPosition,initialPenState =
+        {x=0.0; y=0.0}, Down
 
 
-let boundedAxis x =
-    let max = float canvasSize
-    let min = -max
-    if x > max then
-        max
-    else if x < min then
-        min
-    else x
+(*
+test the bounded logic
 
-let bounded pos =
-    {x = boundedAxis pos.x; y = boundedAxis pos.y}
-
-let pythagDistance pos1 pos2 =
-    let sq x = x * x
-    sq (pos1.x - pos2.x) + sq (pos1.y - pos2.y) |> Math.Abs |> Math.Sqrt
-
-let calcNewPositionBounded(distance,angle,currentPos) : Position * Distance =
-    let newPos = calcNewPosition(distance,angle,currentPos) |> bounded
-    let distanceMoved = pythagDistance currentPos newPos 
-    (newPos, distanceMoved)
-
-let calcNewAngle(angleToTurn,currentAngle) =
-    (currentAngle + angleToTurn) % 360.0
-
-/// Default initial state
-let initialPosition,initialPenState =
-    {x=0.0; y=0.0}, Down
-
-/// Emulating a real implementation for drawing a line
-let dummyDrawLine log oldPos newPos =
-    // for now just log it
-    log (sprintf "...Draw line from (%0.1f,%0.1f) to (%0.1f,%0.1f)" oldPos.x oldPos.y newPos.x newPos.y)
-
-/// trim a string
-let trimString (str:string) = str.Trim()
+calcNewPositionBounded(141.42, 45.0, {x=0. ; y=0.})  // dx=100 scale=1
+calcNewPositionBounded(200.0, 45.0, {x=0. ; y=0.})  // dx=141.42 scale=1
+calcNewPositionBounded(300.0, 45.0, {x=50. ; y=50.})  // dx=150  scale=0.707
+calcNewPositionBounded(300.0, 90.0, {x=50. ; y=50.})  // dx=0,dy=150  scale=0.5
+calcNewPositionBounded(300.0, 90.0, {x=50. ; y=199.})  // dx=0,dy=1  scale=0.0033
+calcNewPositionBounded(300.0, 45.0, {x=50. ; y=199.})  // dx=1,dy=1  scale=0.0047
+*)
 
 // ======================================
 // Canvas
 // ======================================
 
 module Canvas =
-    open System.Windows.Forms
-    open System.Drawing
+    open DomainTypes
+    
+    // track the open canvas window
+    let mutable canvasProcess : System.Diagnostics.Process = null 
 
-    let mutable canvas : Form = null
+    /// Build the canvas executable if needed 
+    let build() =
+        System.Diagnostics.Process.Start("dotnet",@"build ../talk_canvas/canvas.fsproj")
+        |> ignore
+    
+    // test with
+    // Canvas.build()
 
-    // constants
-    let scale = 2.0
-    let bgColor = Color.AntiqueWhite
-    let boundary = 5
-
-    let scaled (x,y) =
-        let x = int (scale * x)
-        let y = int (scale * y)
-        x,y
-
-    let toScreen (x,y) =
-        let x = x + float (canvasSize + boundary)
-        let center = float (canvasSize + boundary)
-        let y = center - y // change direction
-        let x,y = (x,y) |> scaled
-        x,y
-
-    // toScreen (0.,0.)
-
-    let createCanvas() =
-        let windowSize = (canvasSize + boundary) * 2 |> float
-        let scaledSize = (windowSize,windowSize) |> scaled |> fun (x,y) -> x+15, y+40
-        canvas <- new Form(Width=fst scaledSize,Height=snd scaledSize)
-
-    let drawBoundary() =
-        use g = canvas.CreateGraphics()
-        use pen = new Pen(Color.Red)
-        pen.Width <- 1.0f
-        pen.StartCap <- Drawing2D.LineCap.Round
-        pen.EndCap <- Drawing2D.LineCap.Round
-        let leftBottom = (float -canvasSize,float -canvasSize) |> toScreen
-        let leftTop = (float -canvasSize,float canvasSize) |> toScreen
-        let rightTop = (float canvasSize,float canvasSize) |> toScreen
-        let rightBottom = (float canvasSize,float -canvasSize) |> toScreen
-        g.DrawLine(pen, fst leftBottom, snd leftBottom, fst leftTop, snd leftTop)
-        g.DrawLine(pen, fst leftTop, snd leftTop, fst rightTop, snd rightTop)
-        g.DrawLine(pen, fst rightTop, snd rightTop, fst rightBottom, snd rightBottom)
-        g.DrawLine(pen, fst rightBottom, snd rightBottom,fst leftBottom, snd leftBottom)
-
-    let clear() =
-        use g = canvas.CreateGraphics()
-        g.Clear(bgColor)
-        drawBoundary()
-
-    open System.Runtime.InteropServices
-    [<DllImport("user32.dll")>]
-    extern IntPtr GetForegroundWindow()
-
-    [<DllImport("user32.dll")>]
-    extern bool SetForegroundWindow(IntPtr hWnd)
-
+    /// Start the canvas app if it is not already running.
+    /// NOTE: Run build() first time before using this
     let init() =
-        if canvas=null || canvas.IsDisposed then
-            createCanvas()
-
-        let screens = Screen.AllScreens
-        let offsetX = 
-            if screens.Length > 1 then                
-                screens.[1].Bounds.X
-            else
-                screens.[0].Bounds.X
-        
-        canvas.TopMost <- true
-        canvas.StartPosition <- FormStartPosition.CenterScreen
-        canvas.StartPosition <- FormStartPosition.Manual
-        canvas.Location <- Point(offsetX+600,100)
-        canvas.Text <- "Turtle Canvas"
-        canvas.MaximizeBox <- false
-        canvas.MinimizeBox <- false
-        canvas.BackColor <- bgColor
-
-        let currWindow = GetForegroundWindow()
-        canvas.Show()
-        drawBoundary()
-        SetForegroundWindow(currWindow) |> ignore
-
+        if (isNull canvasProcess) || (canvasProcess.HasExited) then
+            Logger.info "Launching canvas"
+            canvasProcess <- System.Diagnostics.Process.Start("dotnet",@"../talk_canvas/bin/Debug/net8.0/canvas.dll") 
+    
+    // test with
     // Canvas.init()
 
-    let drawLine(pos1,pos2) =
-        use g = canvas.CreateGraphics()
-        use pen = new Pen(Color.Black)
-        pen.Width <- 4.0f
-        pen.StartCap <- Drawing2D.LineCap.Round
-        pen.EndCap <- Drawing2D.LineCap.Round
-        let startPos = (pos1.x,pos1.y) |> toScreen
-        let endPos = (pos2.x,pos2.y) |> toScreen
-        g.DrawLine(pen, fst startPos, snd startPos, fst endPos, snd endPos);
+    
+    open System.IO
 
+    /// Define the path to the command file
+    let commandFilePath = 
+        let cwd = Directory.GetCurrentDirectory()
+        let filename = "~turtlecommand.txt"
+        Path.Combine(cwd,filename)
+
+    /// Setup the command writer
+    let executeCommand commands =
+        File.AppendAllLines(commandFilePath,commands)
+            
+    /// Clear the canvas
+    let clear() =
+        executeCommand ["C"]
+
+    /// Draw a boundary on the canvas            
+    let drawBoundary() =
+        executeCommand [$"B {canvasRadius}"]
+
+    /// Turn verbose logging on/off in the canvas.
+    /// If turned on, each action will be logged to console.
+    let verbose(v) =
+        if v then
+            executeCommand ["V true"]
+        else            
+            executeCommand ["V false"]
+    // Canvas.verbose(true)
+    // Canvas.verbose(false)
+    
+    /// Draw a line on the canvas
+    let drawLine(pos1:TurtlePosition,pos2:TurtlePosition) =
+        executeCommand [$"L {pos1.x} {pos1.y} {pos2.x} {pos2.y}"]
 
     (*
-    // test
+    // test some canvas actions
     Canvas.init()
-    Canvas.draw {x=  0.0; y=  0.0} {x= 10.0; y=20.}
-    Canvas.draw {x= 10.0; y= 20.0} {x= 50.0; y=50.}
-    Canvas.draw {x= 50.0; y= 50.0} {x= -50.0; y=50.0}
-    Canvas.draw {x= -50.0; y=50.0} {x=  0.0; y=  0.0}
+    Canvas.drawBoundary()
+    Canvas.drawLine( {x=  0.0; y=  0.0}, {x= 10.0; y=20.} )
+    Canvas.drawLine( {x= 10.0; y= 20.0}, {x= 50.0; y=50.} )
+    Canvas.drawLine( {x= 50.0; y= 50.0}, {x= -50.0; y=50.0} )
+    Canvas.drawLine( {x= -50.0; y=50.0}, {x=  0.0; y=  0.0} )
     Canvas.clear()
     *)
 
 
-// ======================================
-// Logger
-// ======================================
-
-let log message =
-    printfn "%s" message
-
-module Logger =
-
-    let info msg = printfn "INFO %s" msg
-    let warn msg = printfn "WARN %s" msg
-    let error msg = printfn "ERROR %s" msg
 

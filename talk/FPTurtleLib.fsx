@@ -20,23 +20,27 @@ open Common
 // Turtle module
 // ======================================
 
+// ======================================
+// Turtle module
+// ======================================
+
 type TurtleState = {
-    position : Position
+    position : TurtlePosition
     angle : Angle
     penState : PenState
 }
 
 module Turtle = 
 
-    let initialTurtleState = {
-        position = {x=0.0; y=0.0} 
+    let initialState = {
+        position = initialPosition 
         angle = 0.0
         penState = Down
     }                
 
     // note that state is LAST param in all these functions
     let move distance state =
-        Logger.info (sprintf "Move %0.1f" distance)
+        Logger.info $"Move %0.1f{distance}"
 
         let startPosition = state.position 
         let endPosition = calcNewPosition(distance,state.angle,startPosition )
@@ -45,22 +49,19 @@ module Turtle =
         if state.penState = Down then
             Canvas.drawLine(startPosition,endPosition)
 
-        // update the state
+        // return updated state
         {state with position = endPosition}
 
     let turn angleToTurn state =
-        Logger.info (sprintf "Turn %0.1f" angleToTurn)
+        Logger.info $"Turn %0.1f{angleToTurn}"
         
         let newAngle = calcNewAngle(angleToTurn,state.angle) 
-        
-        // update the state
-        {state with angle = newAngle}
+        {state with angle = newAngle} // return updated state
 
     let penUp state =
-        Logger.info "Pen up" 
-        {state with penState = Up}
+        Logger.info "Pen up"
+        {state with penState = Up} // return updated state
 
     let penDown state =
-        Logger.info "Pen down" 
-        {state with penState = Down}
-
+        Logger.info "Pen down"
+        {state with penState = Down} // return updated state

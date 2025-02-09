@@ -1,10 +1,14 @@
 ﻿(* ======================================
 Part of "Thirteen ways of looking at a turtle"
-Talk and video: http://fsharpforfunandprofit.com/turtle/
-
+Talk and video: https://fsharpforfunandprofit.com/turtle/
 ======================================
 
-FP-style turtle with dependency rejection
+Way #11 - OO-style turtle with dependency rejection
+
+In this design the decisions are kept separate from the I/O actions
+
+More on dependency approaches at https://fsharpforfunandprofit.com/posts/dependencies/
+And my talk dependency rejection at https://www.youtube.com/watch?v=P1vES9AgfC4
 
 ====================================== *)
 
@@ -20,14 +24,14 @@ open Common
 // ======================================
 
 type TurtleState = {
-    position : Position
+    position : TurtlePosition
     angle : float
     penState : PenState
 }
 
 type TurtleDecision = {
     logMessage: string
-    draw: (Position * Position) option
+    drawLine: (TurtlePosition * TurtlePosition) option
 }
 
 // ======================================
@@ -41,9 +45,10 @@ type Turtle() =
     let mutable angle = 0.0
     let mutable penState = Down
 
-    // pure method
+    /// The pure method to do the logic but no I/O
+    /// This is easily testable
     member this.MoveDecision(distance) =
-        let logMessage = sprintf "Move %0.1f" distance
+        let logMessage = $"Move %0.1f{distance}"
 
         // do calculation
         let newPos = calcNewPosition(distance,angle,position)
@@ -58,23 +63,28 @@ type Turtle() =
         // update the state
         position <- newPos
 
-        {logMessage=logMessage; draw=drawDecision}
+        // return the decision
+        {logMessage=logMessage; drawLine=drawDecision}
 
-    // impure method
+    /// The impure method to do I/O based on the decision
+    /// Not easily testable without mocking, but no complicated logic to test anyway!
     member this.Move(distance) =
-        // decision
+        
+        // do the decision logic
         let decision = this.MoveDecision(distance)
 
-        // I/O stuff
+        // do I/O stuff based on the decision
         Logger.info decision.logMessage
-        match decision.draw with
+        match decision.drawLine with
         | Some (position,newPos) ->
+            // decision was to draw a line
             Canvas.drawLine(position,newPos)
         | None ->
-            () // do nothing
+            // decision was to do nothing
+            () 
 
     member this.Turn(angleToTurn) =
-        Logger.info (sprintf "Turn %0.1f" angleToTurn)
+        Logger.info $"Turn %0.1f{angleToTurn}"
 
         // do calculation
         let newAngle = calcNewAngle(angleToTurn,angle)
@@ -91,28 +101,45 @@ type Turtle() =
         penState <- Down
 
 
-(*
 
 // -------------------------
 // unit test
 // -------------------------
 
-let turtle = new Turtle()
-turtle.PenUp()
-turtle.MoveDecision 50.0  // expect no draw
-turtle.PenDown()
-turtle.MoveDecision 50.0  // expect draw
-turtle.Turn 90.0
-turtle.MoveDecision 50.0  // expect draw
+let expectIsTrue b msg =
+    if not b then Logger.error $"Test failed: {msg}"
+
+let whenPenUpExpectNoLine() =
+    let turtle = new Turtle()
+    turtle.PenUp()
+    let decision = turtle.MoveDecision 50.0  // expect no draw
+    expectIsTrue (Option.isNone decision.drawLine) "PenUp"
+    
+let whenPenDownExpectLine() =
+    let turtle = new Turtle()
+    turtle.PenDown()
+    let decision = turtle.MoveDecision 50.0  // expect no draw
+    expectIsTrue (Option.isSome decision.drawLine) "PenDown" 
+    
+
+(*
+whenPenUpExpectNoLine() 
+whenPenDownExpectLine()
+*)
 
 // -------------------------
 // integration test
 // -------------------------
 
-Canvas.init()
-let turtle = new Turtle()
-turtle.Move 50.0
-turtle.Turn 90.0
-turtle.Move 50.0
+let integrationTest() =
+    Canvas.init()
+    Canvas.clear()
+    
+    let turtle = new Turtle()
+    turtle.Move 50.0
+    turtle.Turn 90.0
+    turtle.Move 50.0
 
+(*
+integrationTest()
 *)

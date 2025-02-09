@@ -1,37 +1,43 @@
 ﻿(* ======================================
 Part of "Thirteen ways of looking at a turtle"
-Talk and video: http://fsharpforfunandprofit.com/turtle/
+Talk and video: https://fsharpforfunandprofit.com/turtle/
 ======================================
 
-API with capabilities
+Way #13 - API with capabilities
 
 In this design, the turtle exposes a list of functions (capabilities) after each action.
 These are the ONLY actions available to the client
 
-More on capability-based security at http://fsharpforfunandprofit.com/posts/capability-based-security/
+More on capability-based security at https://fsharpforfunandprofit.com/cap/
 ====================================== *)
 
 
 #load "Common.fsx"
 
-open System
 open Common
 
 // ======================================
 // Capability-based Turtle module
 // ======================================
 
-/// A private structure representing the turtle
+// Turtle state
 type TurtleState = {
-    position : Position
+    position : TurtlePosition
     angle : float
     penState : PenState
-
     canMove : bool       // new!
 }
 
+let initialState = {
+    position = initialPosition 
+    angle = 0.0
+    penState = Down
+    canMove = true
+}                
+ 
+/// Turtle capabilities -- a set of functions to call
 type TurtleCapabilities = {
-    move     : MoveFn option
+    move     : MoveFn option  // optional!
     turn     : TurnFn
     penUp    : PenUpDownFn
     penDown  : PenUpDownFn
@@ -41,48 +47,56 @@ and TurnFn =      Angle    -> TurtleCapabilities
 and PenUpDownFn = unit     -> TurtleCapabilities
 
 module Turtle =
+    let boundaryRadius = 200.0
 
-    let private canNotMove position angle =
-        let inline between min max x = x > min && x < max
-        let canvasSize = float canvasSize
+    /// Calculate whether the turtle can move forward 
+    let private cannotMoveForward position angle =
+        let inline between min max x = x >= min && x < max
         // right
-        (angle |> between -90. 90. || angle |> between 270. 360.) && position.x >= canvasSize
-        // bottom
-        || (angle |> between 0. 180.) && position.y <= -canvasSize
+        (angle |> between 0. 90. || angle |> between 270. 360.) && position.x >= boundaryRadius 
         // left
-        || (angle |> between 90. 270.) && position.x <= -canvasSize
+        || (angle |> between 90. 270.) && position.x <= -boundaryRadius 
         // top
-        || (angle |> between 180. 360.) && position.y >= canvasSize
+        || (angle |> between 0. 180.) && position.y >= boundaryRadius 
+        // bottom
+        || (angle |> between 180. 360.) && position.y <= -boundaryRadius 
 
-    let canMove position angle = canNotMove position angle |> not
+    let private canMoveForward position angle =
+        // Logger.debug $"position={position} angle={angle} cannotMoveForward={cannotMoveForward position angle}"
+        cannotMoveForward position angle |> not
 
     // return distance moved as well as state
-    let move distance state =
-        Logger.info (sprintf "Move %0.1f" distance)
+    let private move distance state =
+        //^--now private!
+        Logger.info $"Move %0.1f{distance}"
         // calculate new position
         let startPosition = state.position
-        let endPosition,distanceMoved = calcNewPositionBounded(distance,state.angle,startPosition)
+        let endPosition,_ = calcNewPositionBounded(distance,state.angle,startPosition)
 
         // draw line if needed
         if state.penState = Down then
             Canvas.drawLine(startPosition, endPosition)
-
+       
         // return new capabilities
-        {state with position = endPosition; canMove = canMove endPosition state.angle}
+        {state with position = endPosition; canMove = canMoveForward endPosition state.angle}
 
 
-    let turn angleToTurn state =
-        Logger.info (sprintf "Turn %0.1f" angleToTurn)
+    let private turn angleToTurn state =
+        //^--now private!
+        Logger.info $"Turn %0.1f{angleToTurn}"
         // calculate new angle
         let newAngle = calcNewAngle(angleToTurn,state.angle )
-        // update the state
-        {state with angle = newAngle; canMove = canMove state.position newAngle}
+        
+        // return new capabilities
+        {state with angle = newAngle; canMove = canMoveForward state.position newAngle}
 
-    let penUp state =
+    let private penUp state =
+        //^--now private!
         Logger.info "Pen up"
         {state with penState = Up}
 
-    let penDown state =
+    let private penDown state =
+        //^--now private!
         Logger.info "Pen down"
         {state with penState = Down}
 
@@ -92,137 +106,113 @@ module Turtle =
 
         // create the move function,
         // if the turtle can't move, return None
-        let move =
+        let moveFnOption =
             // the inner function
-            let f dist =
+            let moveFn dist =
+                // calculate the state
                 let newState = move dist state
+                // calculate the capabilities from the new state
                 ctf newState
 
             // return Some of the inner function
             // if the turtle can move, or None
             if state.canMove then
-                Some f
+                Some moveFn
             else
                 None
 
         // create the turn function
-        let turn angle =
+        let turnFn angle =
+            // calculate the state
             let newState = turn angle state
+            // calculate the capabilities from the new state
             ctf newState
 
         // create the pen state functions
-        let penDown() =
+        let penDownFn() =
+            // calculate the state
             let newState = penDown state
+            // calculate the capabilities from the new state
             ctf newState
 
-        let penUp() =
+        let penUpFn() =
+            // calculate the state
             let newState = penUp state
+            // calculate the capabilities from the new state
             ctf newState
 
         // return the structure
         {
-        move     = move
-        turn     = turn
-        penUp    = penUp
-        penDown  = penDown
+        move     = moveFnOption
+        turn     = turnFn
+        penUp    = penUpFn
+        penDown  = penDownFn
         }
 
     /// Return the initial turtle.
     /// This is the ONLY public function!
-    let start() =
-        let state = {
-            position = initialPosition
-            angle = 0.0
-            penState = initialPenState
-            canMove = true
-        }
-        createTurtleCapabilities state
-
-
-
+    let start initialState =
+        createTurtleCapabilities initialState
 
 // ======================================
-// Maybe
+// Examples
 // ======================================
 
-// simplify with Option expression
-type MaybeBuilder() =
-    member this.Return(x) = Some x
-    member this.Bind(x,f) = Option.bind f x
-    member this.Zero() = Some()
-let maybe = MaybeBuilder()
 
+let basicExample() = 
+    Canvas.init()
+    Canvas.clear()
+    Canvas.drawBoundary()
 
-// ======================================
-// Client
-// ======================================
+    let distance = 100.0
+    let angle = 120.0
+    
+    // get the capabilities
+    let mutable turtleCaps = Turtle.start(initialState)
 
-open Turtle
-let info msg = Logger.info msg
-let warn msg = Logger.warn msg
+    if turtleCaps.move.IsSome then
+        turtleCaps <- turtleCaps.move.Value distance
+
+    turtleCaps <- turtleCaps.turn angle
+    
+    if turtleCaps.move.IsSome then
+        turtleCaps <- turtleCaps.move.Value distance
 
 (*
-Canvas.init()
-
-// step 1
-let turtleCaps = Turtle.start()
-
-// step 2
-let turtleCaps = turtleCaps.move.Value 60.0
-
-// step 3
-let turtleCaps = turtleCaps.turn 120.0
+basicExample()
 *)
 
-// test that the boundary is hit
-// after second move of 60
-let testBoundary() =
-    let turtleCaps = Turtle.start()
-    match turtleCaps.move with
-    | None ->
-        warn "Error: Can't do move 1"
-    | Some moveFn ->
-        let turtleCaps = moveFn 60.0
+
+// test that the boundary is hit eventually
+let testBoundaryHit() =
+    Canvas.init()
+    Canvas.clear()
+    Canvas.drawBoundary()
+
+    let distance = 80.0
+    let angle = 120.0
+   
+    let rec drawLineToBoundary moveCount turtleCaps =
         match turtleCaps.move with
         | None ->
-            warn "Error: Can't do move 2"
+            Logger.warn $"Error: Can't move forward on move {moveCount}"
+            turtleCaps, moveCount // return caps and moveCount
         | Some moveFn ->
-            let turtleCaps = moveFn 60.0
-            match turtleCaps.move with
-            | None ->
-                warn "Error: Can't do move 3"
-            | Some moveFn ->
-                info "Success"
+            let turtleCaps = moveFn distance
+            drawLineToBoundary (moveCount+1) turtleCaps 
 
-/// A function that logs and returns Some(),
-/// for use in the "maybe" workflow
-let log message =
-    printfn "%s" message
-    Some ()
+    let turtleCaps, moveCount = Turtle.start initialState |> drawLineToBoundary 1
+    
+    // reached boundary, so turn
+    let turtleCaps2, moveCount2 =
+        turtleCaps.turn angle
+        |> drawLineToBoundary  moveCount
 
+    // reached boundary, so turn again
+    turtleCaps2.turn angle
+    |> drawLineToBoundary  moveCount2
 
-let testBoundary2() =
-    maybe {
-    // create a turtle
-    let turtleFns = Turtle.start()
-
-    // attempt to get the "move" function
-    let! moveFn = turtleFns.move
-    printfn "can move 1"
-
-    // if so, move a distance of 60
-    let turtleFns = moveFn 60.0
-
-    // attempt to get the "move" function again
-    let! moveFn = turtleFns.move
-    printfn "can move 2"
-
-    // if so, move a distance of 60 again
-    let turtleFns = moveFn 60.0
-
-    // attempt to get the "move" function again
-    let! moveFn = turtleFns.move
-    printfn "can move 3"
-    } |> ignore
-
+(*
+testBoundaryHit()
+*)
 

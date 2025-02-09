@@ -22,7 +22,7 @@ open Common
 type Turtle() =
 
     // internal state
-    let mutable position = {x=0.0; y=0.0} 
+    let mutable position = initialPosition 
     let mutable angle = 0.0
     let mutable penState = Down
     

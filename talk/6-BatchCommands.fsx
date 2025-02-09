@@ -1,9 +1,9 @@
 ﻿(* ======================================
 Part of "Thirteen ways of looking at a turtle"
-Talk and video: http://fsharpforfunandprofit.com/turtle/
+Talk and video: https://fsharpforfunandprofit.com/turtle/
 ======================================
 
-Batch oriented -- Using a list of commands
+Way #6 Batch oriented -- Using a list of commands
 
 In this design, the client creates a list of `Command`s that will be intepreted later.
 These commands are then run in sequence using the Turtle library functions.
@@ -13,8 +13,7 @@ This approach means that there is no state that needs to be persisted between ca
 ====================================== *)
 
 
-#load "Common.fsx"
-#load "FPTurtleLib.fsx"
+#load "Common.fsx" "FPTurtleLib.fsx"
 
 open System
 open Common
@@ -46,7 +45,7 @@ module TurtleBatch =
 
     /// Run list of commands in one go
     let run aListOfCommands =
-        let mutable state = Turtle.initialTurtleState
+        let mutable state = Turtle.initialState
         for command in aListOfCommands do
            state <- executeCommand state command
         // return final state
@@ -55,31 +54,34 @@ module TurtleBatch =
     /// Run list of commands in one go
     let run2 aListOfCommands =
         aListOfCommands
-        |> List.fold executeCommand Turtle.initialTurtleState
-
+        |> List.fold executeCommand Turtle.initialState
 
 
 
 // ======================================
-// Examples
+// Batch Command Examples
 // ======================================
 
 let drawTriangle() =
     // create the list of commands
+    let distance = 100.0
+    let angle = 120.0
+    
     let commands = [
-        Move 100.0
-        Turn 120.0
-        Move 100.0
-        Turn 120.0
-        Move 100.0
-        Turn 120.0
+        Move distance
+        Turn angle
+        Move distance
+        Turn angle
+        Move distance
+        Turn angle
         ]
     // run them
     TurtleBatch.run commands
 
-
-Canvas.init()
-drawTriangle()
+let example1() =
+    Canvas.init()
+    Canvas.clear()
+    drawTriangle()
 
 
 

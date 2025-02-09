@@ -1,9 +1,9 @@
 ﻿(* ======================================
 Part of "Thirteen ways of looking at a turtle"
-Talk and video: http://fsharpforfunandprofit.com/turtle/
+Talk and video: https://fsharpforfunandprofit.com/turtle/
 ======================================
 
-Event sourcing -- Building state from a list of past events
+Way #7 - Event sourcing -- Building state from a list of past events
 
 In this design, the client sends a `Command` to a `CommandHandler`.
 The CommandHandler converts that to a list of events and stores them in an `EventStore`.
@@ -34,15 +34,15 @@ type TurtleCommand =
     | PenUp
     | PenDown
 
-/// An event representing a state change that happened
+/// An event representing a state change that actually happened
 type TurtleEvent =
-    | Moved of Distance * startPos:Position * endPos:Position
+    | Moved of Distance * startPos:TurtlePosition * endPos:TurtlePosition
     | Turned of angleTurned:Angle * finalAngle:Angle
     | PenStateChanged of PenState
 
 
 // ======================================
-// Crude implementation of an EventStore
+// Crude in-memory implementation of an EventStore
 // ======================================
 
 module EventStore =
@@ -86,36 +86,36 @@ module CommandHandler =
 
         match command with
         | Move distance ->
-            Logger.info (sprintf "Move %0.1f" distance)
+            Logger.info $"Move %0.1f{distance}"
 
             // calculate new position
             let startPosition = state.position
-            let endPosition,actualDistanceMoved  = calcNewPositionBounded(distance,state.angle,startPosition)
+            let endPosition,boundedResult  = calcNewPositionBounded(distance,state.angle,startPosition)
 
             // draw line if needed
             if state.penState = Down then
                 Canvas.drawLine(startPosition, endPosition)
 
-            //return list of events
-            if actualDistanceMoved > 0.0 then
-                [ Moved (actualDistanceMoved,startPosition,endPosition) ]
+            // construct the list of events and return them
+            if boundedResult.distanceMoved > 0.0 then
+                [ Moved (boundedResult.distanceMoved,startPosition,endPosition) ]
             else
                 []
 
         | Turn angleToTurn ->
-            Logger.info (sprintf "Turn %0.1f" angleToTurn)
+            Logger.info $"Turn %0.1f{angleToTurn}"
             // calculate new angle
             let newAngle = calcNewAngle(angleToTurn,state.angle) 
-            //return list of events
+            // return list of events
             [ Turned (angleToTurn,newAngle) ]
 
         | PenUp ->
             Logger.info "Pen up"
-            [ PenStateChanged Up ]
+            [ PenStateChanged Up ] // return list of events
 
         | PenDown ->
             Logger.info "Pen down"
-            [ PenStateChanged Down ]
+            [ PenStateChanged Down ] // return list of events
 
 
     /// main function : process a command
@@ -126,7 +126,7 @@ module CommandHandler =
 
         /// Then, recreate the state before the command
         let stateBeforeCommand =
-            eventHistory |> List.fold applyEvent Turtle.initialTurtleState
+            eventHistory |> List.fold applyEvent Turtle.initialState
 
         /// Construct the events arising from the command
         let events = executeCommand command stateBeforeCommand
@@ -134,52 +134,82 @@ module CommandHandler =
         // store the events in the event store
         events |> List.iter (EventStore.saveEvent)
 
+    // replay all the events again
+    let replayEvents() =
+        let eventHistory = EventStore.getEvents()
+        for event in eventHistory do
+            match event with
+            | Moved (distance,startPosition, endPosition) ->
+                Canvas.drawLine(startPosition, endPosition)
+            | _ ->
+                // ignore all other events
+                ()
+        
 // ====================================
-// EventSourcingExample
+// EventSourcing examples
 // ====================================
 
-module EventSourcingExample =
+open CommandHandler
 
-    open CommandHandler
-
-    let drawTriangle() =
-        handleCommand (Move 100.0)
-        //EventStore.printEvents()
-        handleCommand (Turn 120.0)
-        handleCommand (Move 100.0)
-        handleCommand (Turn 120.0)
-        handleCommand (Move 100.0)
-        handleCommand (Turn 120.0)
+let drawTriangle() =
+    let distance = 100.0
+    let angle = 120.0
+    
+    handleCommand (Move distance)
+    //EventStore.printEvents()
+    handleCommand (Turn angle)
+    handleCommand (Move distance)
+    handleCommand (Turn angle)
+    handleCommand (Move distance)
+    handleCommand (Turn angle)
 
 (*
 Canvas.init()
+Canvas.clear()
+
+// draw some figures
 EventStore.clear()
-EventSourcingExample.drawTriangle()
+drawTriangle()
+
+// see what events have been stored
+EventStore.getEvents()
+
+// clear the canvas and replay
+Canvas.clear()
+CommandHandler.replayEvents()
 *)
 
-    let drawPolygon n =
-        let angle = (360.0/float n)
+let drawPolygon n =
+    let distance = 100.0
+    let angle = (360.0/float n)
 
-        // define a function that draws one side
-        let drawOneSide sideNumber =
-            handleCommand (Move 50.0)
-            handleCommand (Turn angle)
+    // define a function that draws one side
+    let drawOneSide sideNumber =
+        handleCommand (Move distance)
+        handleCommand (Turn angle)
 
-        // repeat for all sides
-        for i in [1..n] do
-            drawOneSide i
+    // repeat for all sides
+    for i in [1..n] do
+        drawOneSide i
 
 (*
 Canvas.init()
-EventStore.clear()
-EventSourcingExample.drawPolygon 4
-EventSourcingExample.drawPolygon 5
+Canvas.clear()
 
+// draw some figures
+EventStore.clear()
+drawPolygon 4
+drawPolygon 5
+
+// see what events have been stored
 EventStore.getEvents() 
+
+// clear the canvas and replay
+Canvas.clear()
+CommandHandler.replayEvents()
+
 *)
 
-// ======================================
-// Tests
-// ======================================
+
 
 
