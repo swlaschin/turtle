@@ -2,20 +2,6 @@
 
 This directory contains all the scripts used in the talk "13 Ways of Looking at a Turtle"
 
-Caller Implementor
-
-Complexity
-Ease of use Ease of implementation
-Trust
-
-- reasoning
-- easy to test
-  -- can call wrong -- can implement wrong
-  -- error handling     
-  Change
-- Robustness/decoupling
-  -- can change -- can change (decoupling)
-
 ## Introduction
 
 This is cousin to my [FP patterns](https://fsharpforfunandprofit.com/fppatterns/) talk.
